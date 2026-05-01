@@ -9,6 +9,10 @@ By the end, you will run a working pipeline from multiple sources to analytics t
 
 Full tutorial: [tutorials/aws-streaming-pipelines-python-pyspark.md](tutorials/aws-streaming-pipelines-python-pyspark.md)
 
+Git tutorials:
+- [tutorials/git-basics-for-data-engineers.md](tutorials/git-basics-for-data-engineers.md)
+- [tutorials/github-actions-and-pr-workflow.md](tutorials/github-actions-and-pr-workflow.md)
+
 ## What You Will Build
 
 A multi-source streaming architecture with:
@@ -69,6 +73,12 @@ flowchart LR
 8. Target loading and analytics with Athena/Redshift
 9. Observability, reliability, and security hardening
 10. Final validation of end-to-end working pipeline
+
+## Recommended Preparation
+
+Before starting Lab 1, complete:
+1. Git basics tutorial
+2. GitHub Actions and PR workflow tutorial
 
 ## Expected Outcome
 
