@@ -11,7 +11,7 @@ Deploy the base infrastructure with CloudFormation and learn CI-driven deploymen
 
 ## Steps
 
-1. Install dependencies:
+1. Create Python environment and install dependencies:
    ```bash
    python -m venv .venv
    source .venv/bin/activate
@@ -37,8 +37,6 @@ Deploy the base infrastructure with CloudFormation and learn CI-driven deploymen
 
 ## Verify
 
-Run:
-
 ```bash
 aws cloudformation describe-stacks \
   --stack-name streaming-pipeline-dev \
@@ -53,6 +51,6 @@ Capture these outputs for later labs:
 - `CdcTableName`
 - `ApiInvokeUrl`
 
-## Cleanup Notes
+## Quick Run
 
-Do not delete the stack yet; later labs depend on these resources.
+Use `run.sh` in this folder to execute validation and deployment quickly.
