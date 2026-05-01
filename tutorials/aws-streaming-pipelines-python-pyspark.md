@@ -3,12 +3,15 @@
 This tutorial teaches how to build an end-to-end data streaming pipeline on AWS using Python and PySpark, with CloudFormation for IaC and GitHub Actions for CI deployment.
 
 Repository starter assets are included, so you can run labs directly:
-- `infra/streaming-stack.yml`
+- `infra/lab-01-foundation.json`
+- `infra/lab-02-ingestion.json`
+- `infra/lab-05-analytics.json`
 - `.github/workflows/deploy-streaming-stack.yml`
 - `src/producers/`
 - `lambdas/`
 - `jobs/glue/streaming_etl.py`
 - `labs/README.md` (structured lab track)
+- `guides/prerequisites.md` and `scripts/check-prerequisites.sh`
 
 ## 1) Learning Goals
 
@@ -68,49 +71,72 @@ flowchart LR
 - GitHub repository and GitHub Actions enabled.
 - Optional: local Spark for testing (not required if using Glue only).
 
-## 5) Lab 1: CloudFormation IaC Bootstrap (Simple)
+Run prerequisite validator:
 
-Create a stack with core resources: Kinesis stream, S3 bucket, Firehose delivery stream, IAM roles, and a basic Lambda for API ingestion.
+```bash
+bash scripts/check-prerequisites.sh
+```
+
+## 5) Lab 1: Foundation Infrastructure
+
+Create a foundation stack with core shared resources: Kinesis stream, S3 bucket, and DynamoDB table with streams.
 
 ### Minimal CloudFormation skeleton
 
-```yaml
-AWSTemplateFormatVersion: "2010-09-09"
-Description: Streaming pipeline base stack
-Resources:
-  RawBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-
-  EventStream:
-    Type: AWS::Kinesis::Stream
-    Properties:
-      ShardCount: 1
-      RetentionPeriodHours: 24
-
-Outputs:
-  BucketName:
-    Value: !Ref RawBucket
-  KinesisStreamName:
-    Value: !Ref EventStream
+```json
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Streaming pipeline base stack",
+  "Resources": {
+    "RawBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "EventStream": {
+      "Type": "AWS::Kinesis::Stream",
+      "Properties": {
+        "ShardCount": 1,
+        "RetentionPeriodHours": 24
+      }
+    }
+  },
+  "Outputs": {
+    "BucketName": {
+      "Value": {
+        "Ref": "RawBucket"
+      }
+    },
+    "KinesisStreamName": {
+      "Value": {
+        "Ref": "EventStream"
+      }
+    }
+  }
+}
 ```
 
 Deploy manually once (for local understanding):
 
 ```bash
 aws cloudformation deploy \
-  --template-file infra/streaming-stack.yml \
-  --stack-name streaming-pipeline-dev \
+  --template-file infra/lab-01-foundation.json \
+  --stack-name streaming-foundation-dev \
   --capabilities CAPABILITY_NAMED_IAM
 ```
 
-## 6) Lab 2: CI Deployment with GitHub Actions
+## 6) Lab 2: Ingestion Infrastructure + CI Deployment
 
-Goal: user learns CI by deploying/updating the CloudFormation stack through a workflow.
+Goal: user learns CI by deploying/updating split CloudFormation stacks through a workflow.
 
 ### Example workflow
 
@@ -137,16 +163,17 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION }}
-      - name: Validate CloudFormation
-        run: aws cloudformation validate-template --template-body file://infra/streaming-stack.yml
-      - name: Deploy stack
+      - name: Validate CloudFormation templates
         run: |
-          aws cloudformation deploy \
-            --template-file infra/streaming-stack.yml \
-            --stack-name streaming-pipeline-dev \
-            --capabilities CAPABILITY_NAMED_IAM
+          aws cloudformation validate-template --template-body file://infra/lab-01-foundation.json
+          aws cloudformation validate-template --template-body file://infra/lab-02-ingestion.json
+          aws cloudformation validate-template --template-body file://infra/lab-05-analytics.json
+      - name: Deploy stacks
+        run: |
+          # Deploy split stacks (foundation -> ingestion -> analytics)
+          echo "Use workflow in .github/workflows/deploy-streaming-stack.yml"
       - name: Show outputs
-        run: aws cloudformation describe-stacks --stack-name streaming-pipeline-dev --query "Stacks[0].Outputs"
+        run: echo "Print outputs from foundation, ingestion, and analytics stacks"
 ```
 
 ## 7) Lab 3: Source 1 - Python Producer to Kinesis
@@ -289,6 +316,9 @@ ORDER BY events DESC;
 
 For Redshift Serverless, use `COPY` or federated ingestion pattern from curated S3 paths.
 
+Analytics infrastructure (Athena workgroup) is deployed in split infra style using:
+- `infra/lab-05-analytics.json`
+
 ## 12) Lab 8: Observability and Reliability
 
 - CloudWatch dashboards: ingestion throughput, Lambda errors, Glue job lag.
@@ -311,7 +341,9 @@ For Redshift Serverless, use `COPY` or federated ingestion pattern from curated 
 ## 14) Cleanup
 
 ```bash
-aws cloudformation delete-stack --stack-name streaming-pipeline-dev
+aws cloudformation delete-stack --stack-name streaming-analytics-dev
+aws cloudformation delete-stack --stack-name streaming-ingestion-dev
+aws cloudformation delete-stack --stack-name streaming-foundation-dev
 ```
 
 Also remove Glue jobs, Athena tables/databases, and Redshift resources if created outside the stack.

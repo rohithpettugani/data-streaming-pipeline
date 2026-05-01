@@ -13,7 +13,7 @@ git checkout -b feature/update-streaming-stack
 2. Make changes and commit:
 
 ```bash
-git add infra/streaming-stack.yml
+git add infra/lab-01-foundation.json infra/lab-02-ingestion.json infra/lab-05-analytics.json
 git commit -m "feat: add API Gateway resources to stack"
 ```
 
@@ -34,7 +34,7 @@ gh pr create --fill
 
 ## 2) GitHub Actions CI for CloudFormation
 
-Use this workflow to validate and deploy stack changes.
+Use this workflow to validate and deploy split stack changes (foundation -> ingestion -> analytics).
 
 ```yaml
 name: Deploy Streaming Stack
@@ -60,15 +60,18 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: ${{ secrets.AWS_REGION }}
-      - name: Validate template
-        run: aws cloudformation validate-template --template-body file://infra/streaming-stack.yml
-      - name: Deploy stack
+      - name: Validate templates
         run: |
-          aws cloudformation deploy \
-            --template-file infra/streaming-stack.yml \
-            --stack-name streaming-pipeline-dev \
-            --capabilities CAPABILITY_NAMED_IAM
+          aws cloudformation validate-template --template-body file://infra/lab-01-foundation.json
+          aws cloudformation validate-template --template-body file://infra/lab-02-ingestion.json
+          aws cloudformation validate-template --template-body file://infra/lab-05-analytics.json
+      - name: Deploy stacks
+        run: |
+          # See repository workflow for full commands with output wiring
+          echo "Deploy foundation, ingestion, and analytics stacks in order"
 ```
+
+Note: GitHub Actions workflow files are YAML (`.yml`/`.yaml`) and cannot be JSON.
 
 ## 3) Required Repository Secrets
 

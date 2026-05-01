@@ -11,15 +11,13 @@ Generate CDC events from DynamoDB Streams and route normalized records to Fireho
 
 ## Steps
 
-1. Export table name:
-   ```bash
-   export AWS_REGION=us-east-1
-   export DDB_TABLE_NAME="<cdc-table-name>"
-   ```
+1. Ensure Lab 01 and Lab 02 completed (foundation + ingestion stacks exist).
 2. Run CDC writer:
    ```bash
-   python src/producers/ddb_writer.py
+   bash labs/lab-03-dynamodb-cdc-source/run.sh
    ```
+
+The script performs dependency checks and auto-resolves `DDB_TABLE_NAME` from foundation stack outputs.
 
 ## Verify
 

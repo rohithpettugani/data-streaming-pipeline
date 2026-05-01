@@ -9,6 +9,7 @@ By the end, you will run a working pipeline from multiple sources to analytics t
 
 Full tutorial: [tutorials/aws-streaming-pipelines-python-pyspark.md](tutorials/aws-streaming-pipelines-python-pyspark.md)
 Structured labs: [labs/README.md](labs/README.md)
+Prerequisites guide: [guides/prerequisites.md](guides/prerequisites.md)
 
 Git tutorials:
 - [tutorials/git-basics-for-data-engineers.md](tutorials/git-basics-for-data-engineers.md)
@@ -77,18 +78,23 @@ flowchart LR
 
 ## Starter Assets Included
 
-- IaC template: `infra/streaming-stack.yml`
-- CI workflow: `.github/workflows/deploy-streaming-stack.yml`
+- IaC templates (split by lab):
+  - `infra/lab-01-foundation.json`
+  - `infra/lab-02-ingestion.json`
+  - `infra/lab-05-analytics.json`
+- CI workflow: `.github/workflows/deploy-streaming-stack.yml` (GitHub Actions workflows use YAML)
 - Python producers: `src/producers/`
 - Lambda handlers: `lambdas/`
 - PySpark Glue job: `jobs/glue/streaming_etl.py`
 - Structured lab docs: `labs/`
+- Dependency scripts: `scripts/check-prerequisites.sh`, `scripts/lab_helpers.sh`
 
 ## Recommended Preparation
 
 Before starting Lab 1, complete:
 1. Git basics tutorial
 2. GitHub Actions and PR workflow tutorial
+3. Prerequisites guide and checks (`guides/prerequisites.md`)
 
 ## Expected Outcome
 

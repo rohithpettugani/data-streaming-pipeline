@@ -10,6 +10,7 @@ import boto3
 
 
 def build_event() -> dict:
+    # Keep a consistent event shape so downstream parsing stays simple.
     return {
         "event_id": str(uuid.uuid4()),
         "source": "python_producer",
@@ -21,6 +22,7 @@ def build_event() -> dict:
 
 
 def main() -> None:
+    # Runtime knobs are environment-driven so labs can tune behavior quickly.
     region = os.getenv("AWS_REGION", "us-east-1")
     stream_name = os.getenv("STREAM_NAME")
     sleep_seconds = float(os.getenv("PRODUCER_INTERVAL_SECONDS", "1"))
@@ -32,10 +34,12 @@ def main() -> None:
     print(f"Writing events to stream={stream_name} region={region}")
 
     while True:
+        # Generate one synthetic event and push it to Kinesis continuously.
         event = build_event()
         client.put_record(
             StreamName=stream_name,
             Data=json.dumps(event).encode("utf-8"),
+            # Partition by user to simulate realistic key-based sharding.
             PartitionKey=event["user_id"],
         )
         print(f"sent {event['event_id']} amount={event['amount']}")

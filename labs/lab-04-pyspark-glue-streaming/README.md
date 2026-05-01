@@ -10,12 +10,13 @@ Run a Glue streaming ETL job that reads stream data, applies schema + dedupe log
 
 ## Steps
 
-1. Upload script:
+1. Ensure Lab 01 foundation stack exists.
+2. Upload script:
    ```bash
-   aws s3 cp jobs/glue/streaming_etl.py s3://<raw-bucket-name>/glue/scripts/streaming_etl.py
+   bash labs/lab-04-pyspark-glue-streaming/run.sh
    ```
-2. Create Glue job with IAM role and script location.
-3. Start job with args:
+3. Create Glue job with IAM role and script location.
+4. Start job with args:
    - `--kafka_bootstrap_servers <msk-bootstrap>`
    - `--kafka_topic events`
    - `--output_path s3://<raw-bucket-name>/curated/events/`
@@ -29,4 +30,4 @@ Run a Glue streaming ETL job that reads stream data, applies schema + dedupe log
 
 ## Quick Run
 
-Use `run.sh` in this folder to upload the script and print sample Glue start command.
+Use `run.sh` in this folder to check dependencies, resolve bucket output, upload the script, and print a sample Glue start command.

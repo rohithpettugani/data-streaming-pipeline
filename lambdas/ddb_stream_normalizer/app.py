@@ -11,12 +11,14 @@ firehose = boto3.client("firehose")
 
 
 def _to_primitive(value):
+    # DynamoDB numeric values can appear as Decimal; JSON needs native types.
     if isinstance(value, Decimal):
         return float(value)
     return value
 
 
 def lambda_handler(event, context):
+    # Converts DynamoDB stream records into newline-delimited JSON for Firehose.
     stream_name = os.environ["FIREHOSE_STREAM_NAME"]
     records = []
 
@@ -37,6 +39,7 @@ def lambda_handler(event, context):
         records.append({"Data": serialized})
 
     if records:
+        # Batch write is more efficient than one-by-one record sends.
         firehose.put_record_batch(DeliveryStreamName=stream_name, Records=records)
 
     return {"statusCode": 200, "processed": len(records)}

@@ -28,5 +28,10 @@ Add monitoring and reliability checks, then clean up stack resources.
 Use `run.sh` for stack cleanup:
 
 ```bash
-STACK_NAME=streaming-pipeline-dev bash labs/lab-06-observability-and-cleanup/run.sh
+bash labs/lab-06-observability-and-cleanup/run.sh
 ```
+
+Cleanup order is dependency-safe:
+1. `streaming-analytics-dev`
+2. `streaming-ingestion-dev`
+3. `streaming-foundation-dev`

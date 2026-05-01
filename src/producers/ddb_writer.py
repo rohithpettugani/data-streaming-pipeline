@@ -9,6 +9,7 @@ import boto3
 
 
 def main() -> None:
+    # Table name is sourced from foundation stack outputs in lab scripts.
     region = os.getenv("AWS_REGION", "us-east-1")
     table_name = os.getenv("DDB_TABLE_NAME")
     sleep_seconds = float(os.getenv("DDB_WRITE_INTERVAL_SECONDS", "2"))
@@ -21,6 +22,7 @@ def main() -> None:
     print(f"Writing CDC records to table={table_name} region={region}")
 
     while True:
+        # Inserts trigger DynamoDB Streams and exercise the CDC path.
         item = {
             "pk": f"order#{uuid.uuid4()}",
             "created_at": datetime.now(timezone.utc).isoformat(),

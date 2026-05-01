@@ -10,6 +10,7 @@ import requests
 
 
 def main() -> None:
+    # Endpoint comes from stack outputs (resolved by the lab run script).
     endpoint = os.getenv("API_ENDPOINT")
     sleep_seconds = float(os.getenv("API_CALL_INTERVAL_SECONDS", "1"))
 
@@ -18,6 +19,7 @@ def main() -> None:
 
     print(f"Posting events to {endpoint}")
     while True:
+        # Simulate client-side business events sent over HTTP.
         payload = {
             "client_event_id": str(uuid.uuid4()),
             "event_ts": datetime.now(timezone.utc).isoformat(),
@@ -25,6 +27,7 @@ def main() -> None:
             "amount": round(random.uniform(10.0, 1500.0), 2),
         }
         response = requests.post(endpoint, json=payload, timeout=10)
+        # Fail fast on non-2xx responses so learners notice issues quickly.
         response.raise_for_status()
         print(json.dumps({"status": response.status_code, "payload": payload}))
         time.sleep(sleep_seconds)

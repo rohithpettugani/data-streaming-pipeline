@@ -5,6 +5,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import DoubleType, IntegerType, StringType, StructField, StructType
 
+# Glue job arguments are passed at runtime from the lab instructions.
 args = getResolvedOptions(
     sys.argv,
     [
@@ -18,6 +19,7 @@ args = getResolvedOptions(
 spark = SparkSession.builder.appName("streaming-etl").getOrCreate()
 spark.conf.set("spark.sql.shuffle.partitions", "4")
 
+# Expected normalized event schema used across all producers.
 schema = StructType(
     [
         StructField("event_id", StringType(), True),
@@ -30,6 +32,7 @@ schema = StructType(
 )
 
 raw = (
+    # Read streaming records from Kafka/MSK topic.
     spark.readStream.format("kafka")
     .option("kafka.bootstrap.servers", args["kafka_bootstrap_servers"])
     .option("subscribe", args["kafka_topic"])
@@ -38,6 +41,7 @@ raw = (
 )
 
 parsed = (
+    # Parse JSON payload and derive typed event timestamp for watermarking.
     raw.select(F.from_json(F.col("value").cast("string"), schema).alias("r"))
     .select("r.*")
     .withColumn("event_time", F.to_timestamp("event_ts"))
@@ -47,6 +51,7 @@ parsed = (
 clean = parsed.withWatermark("event_time", "10 minutes").dropDuplicates(["event_id"])
 
 (
+    # Persist curated stream as partitioned parquet with checkpointing.
     clean.writeStream.format("parquet")
     .outputMode("append")
     .option("path", args["output_path"])

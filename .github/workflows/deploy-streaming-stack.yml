@@ -24,8 +24,11 @@ permissions:
   contents: read
 
 env:
-  STACK_NAME: streaming-pipeline-${{ github.event.inputs.environment || 'dev' }}
   PROJECT_NAME: dspipeline
+  ENVIRONMENT: ${{ github.event.inputs.environment || 'dev' }}
+  FOUNDATION_STACK_NAME: streaming-foundation-${{ github.event.inputs.environment || 'dev' }}
+  INGESTION_STACK_NAME: streaming-ingestion-${{ github.event.inputs.environment || 'dev' }}
+  ANALYTICS_STACK_NAME: streaming-analytics-${{ github.event.inputs.environment || 'dev' }}
 
 jobs:
   deploy:
@@ -41,21 +44,72 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Validate CloudFormation template
-        run: aws cloudformation validate-template --template-body file://infra/streaming-stack.yml
+        run: |
+          aws cloudformation validate-template --template-body file://infra/lab-01-foundation.json
+          aws cloudformation validate-template --template-body file://infra/lab-02-ingestion.json
+          aws cloudformation validate-template --template-body file://infra/lab-05-analytics.json
 
-      - name: Deploy stack
+      - name: Deploy foundation stack
         run: |
           aws cloudformation deploy \
-            --template-file infra/streaming-stack.yml \
-            --stack-name "${STACK_NAME}" \
+            --template-file infra/lab-01-foundation.json \
+            --stack-name "${FOUNDATION_STACK_NAME}" \
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               ProjectName="${PROJECT_NAME}" \
-              Environment="${{ github.event.inputs.environment || 'dev' }}"
+              Environment="${ENVIRONMENT}"
+
+      - name: Resolve foundation outputs
+        run: |
+          RAW_BUCKET_NAME="$(aws cloudformation describe-stacks --stack-name "${FOUNDATION_STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='RawBucketName'].OutputValue | [0]" --output text)"
+          RAW_BUCKET_ARN="$(aws cloudformation describe-stacks --stack-name "${FOUNDATION_STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='RawBucketArn'].OutputValue | [0]" --output text)"
+          STREAM_NAME="$(aws cloudformation describe-stacks --stack-name "${FOUNDATION_STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='StreamName'].OutputValue | [0]" --output text)"
+          STREAM_ARN="$(aws cloudformation describe-stacks --stack-name "${FOUNDATION_STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='StreamArn'].OutputValue | [0]" --output text)"
+          CDC_TABLE_STREAM_ARN="$(aws cloudformation describe-stacks --stack-name "${FOUNDATION_STACK_NAME}" --query "Stacks[0].Outputs[?OutputKey=='CdcTableStreamArn'].OutputValue | [0]" --output text)"
+
+          echo "RAW_BUCKET_NAME=${RAW_BUCKET_NAME}" >> "${GITHUB_ENV}"
+          echo "RAW_BUCKET_ARN=${RAW_BUCKET_ARN}" >> "${GITHUB_ENV}"
+          echo "STREAM_NAME=${STREAM_NAME}" >> "${GITHUB_ENV}"
+          echo "STREAM_ARN=${STREAM_ARN}" >> "${GITHUB_ENV}"
+          echo "CDC_TABLE_STREAM_ARN=${CDC_TABLE_STREAM_ARN}" >> "${GITHUB_ENV}"
+
+      - name: Deploy ingestion stack
+        run: |
+          aws cloudformation deploy \
+            --template-file infra/lab-02-ingestion.json \
+            --stack-name "${INGESTION_STACK_NAME}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              ProjectName="${PROJECT_NAME}" \
+              Environment="${ENVIRONMENT}" \
+              RawBucketName="${RAW_BUCKET_NAME}" \
+              RawBucketArn="${RAW_BUCKET_ARN}" \
+              EventStreamName="${STREAM_NAME}" \
+              EventStreamArn="${STREAM_ARN}" \
+              CdcTableStreamArn="${CDC_TABLE_STREAM_ARN}"
+
+      - name: Deploy analytics stack
+        run: |
+          aws cloudformation deploy \
+            --template-file infra/lab-05-analytics.json \
+            --stack-name "${ANALYTICS_STACK_NAME}" \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              ProjectName="${PROJECT_NAME}" \
+              Environment="${ENVIRONMENT}" \
+              RawBucketName="${RAW_BUCKET_NAME}"
 
       - name: Print stack outputs
         run: |
           aws cloudformation describe-stacks \
-            --stack-name "${STACK_NAME}" \
+            --stack-name "${FOUNDATION_STACK_NAME}" \
+            --query "Stacks[0].Outputs" \
+            --output table
+          aws cloudformation describe-stacks \
+            --stack-name "${INGESTION_STACK_NAME}" \
+            --query "Stacks[0].Outputs" \
+            --output table
+          aws cloudformation describe-stacks \
+            --stack-name "${ANALYTICS_STACK_NAME}" \
             --query "Stacks[0].Outputs" \
             --output table

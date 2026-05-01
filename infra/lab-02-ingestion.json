@@ -1,0 +1,378 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Lab 02 ingestion resources",
+  "Parameters": {
+    "ProjectName": {
+      "Type": "String",
+      "Default": "dspipeline"
+    },
+    "Environment": {
+      "Type": "String",
+      "Default": "dev",
+      "AllowedValues": [
+        "dev",
+        "stage",
+        "prod"
+      ]
+    },
+    "RawBucketName": {
+      "Type": "String"
+    },
+    "RawBucketArn": {
+      "Type": "String"
+    },
+    "EventStreamName": {
+      "Type": "String"
+    },
+    "EventStreamArn": {
+      "Type": "String"
+    },
+    "CdcTableStreamArn": {
+      "Type": "String"
+    }
+  },
+  "Resources": {
+    "FirehoseRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {
+          "Fn::Sub": "${ProjectName}-${Environment}-firehose-role"
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "firehose.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "firehose-s3-write",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:AbortMultipartUpload",
+                    "s3:GetBucketLocation",
+                    "s3:GetObject",
+                    "s3:ListBucket",
+                    "s3:ListBucketMultipartUploads",
+                    "s3:PutObject"
+                  ],
+                  "Resource": [
+                    {
+                      "Ref": "RawBucketArn"
+                    },
+                    {
+                      "Fn::Sub": "${RawBucketArn}/*"
+                    }
+                  ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "FirehoseStream": {
+      "Type": "AWS::KinesisFirehose::DeliveryStream",
+      "Properties": {
+        "DeliveryStreamName": {
+          "Fn::Sub": "${ProjectName}-${Environment}-raw-firehose"
+        },
+        "DeliveryStreamType": "DirectPut",
+        "S3DestinationConfiguration": {
+          "BucketARN": {
+            "Ref": "RawBucketArn"
+          },
+          "RoleARN": {
+            "Fn::GetAtt": [
+              "FirehoseRole",
+              "Arn"
+            ]
+          },
+          "Prefix": "raw/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/",
+          "ErrorOutputPrefix": "errors/!{firehose:error-output-type}/",
+          "BufferingHints": {
+            "IntervalInSeconds": 60,
+            "SizeInMBs": 5
+          },
+          "CompressionFormat": "GZIP"
+        }
+      }
+    },
+    "ApiIngestRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {
+          "Fn::Sub": "${ProjectName}-${Environment}-api-ingest-role"
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "api-ingest-policy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "kinesis:PutRecord"
+                  ],
+                  "Resource": {
+                    "Ref": "EventStreamArn"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "ApiIngestFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${ProjectName}-${Environment}-api-ingest"
+        },
+        "Runtime": "python3.11",
+        "Handler": "index.lambda_handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "ApiIngestRole",
+            "Arn"
+          ]
+        },
+        "Timeout": 30,
+        "MemorySize": 256,
+        "Environment": {
+          "Variables": {
+            "STREAM_NAME": {
+              "Ref": "EventStreamName"
+            }
+          }
+        },
+        "Code": {
+          "ZipFile": "import json\\nimport os\\nimport uuid\\nfrom datetime import datetime, timezone\\nimport boto3\\nkinesis = boto3.client('kinesis')\\n\\ndef lambda_handler(event, context):\\n    body = json.loads(event.get('body') or '{}')\\n    payload = {\\n        'event_id': str(uuid.uuid4()),\\n        'source': 'api_gateway',\\n        'event_ts': datetime.now(timezone.utc).isoformat(),\\n        'schema_version': 1,\\n        'payload': body\\n    }\\n    kinesis.put_record(\\n        StreamName=os.environ['STREAM_NAME'],\\n        Data=json.dumps(payload).encode('utf-8'),\\n        PartitionKey='api-source'\\n    )\\n    return {'statusCode': 200, 'body': json.dumps({'ok': True})}\\n"
+        }
+      }
+    },
+    "RestApi": {
+      "Type": "AWS::ApiGateway::RestApi",
+      "Properties": {
+        "Name": {
+          "Fn::Sub": "${ProjectName}-${Environment}-ingestion-api"
+        }
+      }
+    },
+    "RestApiResource": {
+      "Type": "AWS::ApiGateway::Resource",
+      "Properties": {
+        "ParentId": {
+          "Fn::GetAtt": [
+            "RestApi",
+            "RootResourceId"
+          ]
+        },
+        "PathPart": "events",
+        "RestApiId": {
+          "Ref": "RestApi"
+        }
+      }
+    },
+    "RestApiMethodPost": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "HttpMethod": "POST",
+        "AuthorizationType": "NONE",
+        "ResourceId": {
+          "Ref": "RestApiResource"
+        },
+        "RestApiId": {
+          "Ref": "RestApi"
+        },
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "IntegrationHttpMethod": "POST",
+          "Uri": {
+            "Fn::Sub": "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiIngestFunction.Arn}/invocations"
+          }
+        }
+      }
+    },
+    "ApiDeployment": {
+      "Type": "AWS::ApiGateway::Deployment",
+      "DependsOn": [
+        "RestApiMethodPost"
+      ],
+      "Properties": {
+        "RestApiId": {
+          "Ref": "RestApi"
+        }
+      }
+    },
+    "ApiStage": {
+      "Type": "AWS::ApiGateway::Stage",
+      "Properties": {
+        "RestApiId": {
+          "Ref": "RestApi"
+        },
+        "DeploymentId": {
+          "Ref": "ApiDeployment"
+        },
+        "StageName": "v1"
+      }
+    },
+    "ApiLambdaPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Ref": "ApiIngestFunction"
+        },
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/POST/events"
+        }
+      }
+    },
+    "DdbNormalizerRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": {
+          "Fn::Sub": "${ProjectName}-${Environment}-ddb-normalizer-role"
+        },
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Policies": [
+          {
+            "PolicyName": "ddb-normalizer-policy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "firehose:PutRecordBatch"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "FirehoseStream",
+                      "Arn"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "DdbNormalizerFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": {
+          "Fn::Sub": "${ProjectName}-${Environment}-ddb-normalizer"
+        },
+        "Runtime": "python3.11",
+        "Handler": "index.lambda_handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "DdbNormalizerRole",
+            "Arn"
+          ]
+        },
+        "Timeout": 30,
+        "MemorySize": 256,
+        "Environment": {
+          "Variables": {
+            "FIREHOSE_STREAM_NAME": {
+              "Ref": "FirehoseStream"
+            }
+          }
+        },
+        "Code": {
+          "ZipFile": "import json\\nimport os\\nimport uuid\\nfrom datetime import datetime, timezone\\nimport boto3\\nfirehose = boto3.client('firehose')\\n\\ndef lambda_handler(event, context):\\n    stream_name = os.environ['FIREHOSE_STREAM_NAME']\\n    records = []\\n    for record in event.get('Records', []):\\n        payload = {\\n            'event_id': str(uuid.uuid4()),\\n            'source': 'dynamodb_stream',\\n            'event_ts': datetime.now(timezone.utc).isoformat(),\\n            'schema_version': 1,\\n            'event_name': record.get('eventName', 'UNKNOWN'),\\n            'payload': record.get('dynamodb', {}).get('NewImage', {})\\n        }\\n        records.append({'Data': (json.dumps(payload) + '\\\\n').encode('utf-8')})\\n    if records:\\n        firehose.put_record_batch(DeliveryStreamName=stream_name, Records=records)\\n    return {'ok': True, 'records': len(records)}\\n"
+        }
+      }
+    },
+    "DdbStreamMapping": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "Properties": {
+        "EventSourceArn": {
+          "Ref": "CdcTableStreamArn"
+        },
+        "FunctionName": {
+          "Ref": "DdbNormalizerFunction"
+        },
+        "BatchSize": 100,
+        "StartingPosition": "LATEST"
+      }
+    }
+  },
+  "Outputs": {
+    "FirehoseName": {
+      "Value": {
+        "Ref": "FirehoseStream"
+      }
+    },
+    "ApiInvokeUrl": {
+      "Value": {
+        "Fn::Sub": "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/v1/events"
+      }
+    }
+  }
+}

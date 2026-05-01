@@ -1,5 +1,9 @@
 # Structured Labs Index
 
+Start here first:
+- [Prerequisites guide](../guides/prerequisites.md)
+- Run dependency checks: `bash scripts/check-prerequisites.sh`
+
 Follow these labs in order. Each lab is a folder with:
 - `README.md` for instructions
 - `run.sh` for a runnable helper script
@@ -24,6 +28,14 @@ Example:
 ```bash
 bash labs/lab-01-setup-and-deploy/run.sh
 ```
+
+## Infrastructure Split Across Labs
+
+- Lab 01: foundation stack (`streaming-foundation-dev`)
+- Lab 02: ingestion stack (`streaming-ingestion-dev`)
+- Lab 05: analytics stack (`streaming-analytics-dev`)
+
+Each `run.sh` includes dependency checks and validates required stack dependencies before execution.
 
 ## Lab Completion Outcome
 
