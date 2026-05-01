@@ -2,6 +2,14 @@
 
 This tutorial teaches how to build an end-to-end data streaming pipeline on AWS using Python and PySpark, with CloudFormation for IaC and GitHub Actions for CI deployment.
 
+Repository starter assets are included, so you can run labs directly:
+- `infra/streaming-stack.yml`
+- `.github/workflows/deploy-streaming-stack.yml`
+- `src/producers/`
+- `lambdas/`
+- `jobs/glue/streaming_etl.py`
+- `labs/README.md` (structured lab track)
+
 ## 1) Learning Goals
 
 By the end of this tutorial, you will be able to:

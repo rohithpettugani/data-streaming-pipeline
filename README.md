@@ -8,6 +8,7 @@ This project helps you learn how to build an end-to-end AWS streaming pipeline u
 By the end, you will run a working pipeline from multiple sources to analytics targets.
 
 Full tutorial: [tutorials/aws-streaming-pipelines-python-pyspark.md](tutorials/aws-streaming-pipelines-python-pyspark.md)
+Structured labs: [labs/README.md](labs/README.md)
 
 Git tutorials:
 - [tutorials/git-basics-for-data-engineers.md](tutorials/git-basics-for-data-engineers.md)
@@ -73,6 +74,15 @@ flowchart LR
 8. Target loading and analytics with Athena/Redshift
 9. Observability, reliability, and security hardening
 10. Final validation of end-to-end working pipeline
+
+## Starter Assets Included
+
+- IaC template: `infra/streaming-stack.yml`
+- CI workflow: `.github/workflows/deploy-streaming-stack.yml`
+- Python producers: `src/producers/`
+- Lambda handlers: `lambdas/`
+- PySpark Glue job: `jobs/glue/streaming_etl.py`
+- Structured lab docs: `labs/`
 
 ## Recommended Preparation
 
